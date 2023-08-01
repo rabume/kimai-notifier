@@ -1,0 +1,7 @@
+{
+  "apiEndpoint": "https://your.kimai-instance.com/api/timesheets",
+  "username": "your-username",
+  "token": "your-api-token",
+  "interval": 1,
+  "threshold": 8.5
+}
