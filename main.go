@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"runtime"
@@ -51,9 +52,10 @@ func main() {
 		fmt.Print("\033[1A")
 		fmt.Printf("Total hours worked until now: %.2f\n", totalHours)
 
-		// Check it is 12:00 PM or past and notify user to take a break
+		// Check if it is between 12:00 PM and 1:00 PM and notify user to take a break
+		// TODO: Only inform user if set in config -> add config option
 		now := time.Now()
-		if now.Hour() >= 12 && now.Minute() >= 0 && !InformedAboutLunch {
+		if now.Hour() == 12 && now.Minute() >= 0 && now.Minute() <= 59 && !InformedAboutLunch {
 			InformedAboutLunch = true
 			notifyUser("It's lunch time! \nTake a break. 😋")
 		}
@@ -96,11 +98,42 @@ func getTotalHours() (float64, error) {
 		}
 
 		if beginTime.Before(end) {
-			duration := timesheet["duration"].(float64) / 3600.0 // Convert seconds to hours
+			duration := timesheet["duration"].(float64)
+			duration = math.Round(duration)
 			totalHours += duration
 		}
 	}
 
+  // Get the active timesheet and calculate the duration
+	resp, err = client.R().
+		SetHeader("accept", "application/json").
+		SetHeader("X-AUTH-USER", config.Username).
+		SetHeader("X-AUTH-TOKEN", config.Token).
+		Get(config.ApiEndpoint + "/active")
+
+	if err != nil {
+		return 0, err
+	}
+
+	var activeTimesheet []map[string]interface{}
+	json.Unmarshal(resp.Body(), &activeTimesheet)
+
+  if len(activeTimesheet) > 0 && activeTimesheet[0]["begin"] != nil {
+		beginTime, err := time.Parse("2006-01-02T15:04:05-0700", activeTimesheet[0]["begin"].(string))
+		if err != nil {
+			return 0, err
+		}
+
+		duration := time.Since(beginTime).Seconds()
+		duration = math.Round(duration)
+		totalHours += duration
+	}
+
+	totalMinutes := math.Floor(totalHours / 60)
+	hours := math.Floor(totalMinutes / 60)
+	minutes := totalMinutes - (hours * 60)
+
+	totalHours = hours + (minutes / 100)
 	return totalHours, nil
 }
 
